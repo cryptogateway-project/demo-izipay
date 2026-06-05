@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IziShop — boutique de démonstration (paiement crypto via IzichangePay)
 
-## Getting Started
+Boutique e-commerce minimale qui démontre le parcours d'achat payé en crypto :
 
-First, run the development server:
+**Catalogue → panier → checkout hébergé IzichangePay → confirmation par webhook.**
+
+L'écran de paiement crypto (réseaux, QR code) est **hébergé par IzichangePay** (champ `paymentLink`) ;
+la boutique crée le paiement côté serveur, redirige le client, puis confirme la commande à la
+réception du webhook `payment_intent.completed`.
+
+## Configuration
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
+# IZIPAY_API_KEY=sk_test_…   (dashboard → Développeurs → Clés API)
+# IZIPAY_WEBHOOK_SECRET=whsec_…   (dashboard → Développeurs → Webhooks)
+# SITE_URL=http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Lancer
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev                 # http://localhost:3000
+ngrok http 3000             # expose /webhook au sandbox (l'endpoint dashboard doit pointer sur …/webhook)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Recevoir les webhooks (ngrok)
 
-## Learn More
+1. Le tunnel ngrok doit pointer sur **le port de la boutique (3000)** : `ngrok http 3000`.
+   (Si ngrok pointe sur un autre port, ex. 4040, c'est cette autre app qui reçoit, pas la boutique.)
+2. L'endpoint webhook du dashboard = `https://<votre-domaine>.ngrok-free.dev/webhook`.
+3. `IZIPAY_WEBHOOK_SECRET` (.env.local) **DOIT être le secret de cet endpoint** (sinon `/webhook`
+   répond 400 — visible dans Dashboard → Intégration → Webhooks → Livraisons récentes).
 
-To learn more about Next.js, take a look at the following resources:
+**Servir deux apps avec un seul tunnel** (ex. boutique 3000 + un playground 4040) :
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run relay               # relais sur :4455 -> rediffuse vers 3000 ET 4040 (signature préservée)
+ngrok http 4455             # l'endpoint dashboard pointe alors sur le relais
+# cibles configurables : RELAY_TARGETS="http://localhost:3000,http://localhost:4040"
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Parcours
 
-## Deploy on Vercel
+1. **Catalogue** (`/`) — grille de produits, bouton « Ajouter » au panier.
+2. **Panier** (`/cart`) — quantités, total, « Payer en crypto ».
+3. **Checkout** — `POST /api/checkout` recalcule le total côté serveur, crée le `PaymentIntent`
+   (`POST /v1/payment-intents`) et redirige vers le `paymentLink`.
+4. **Confirmation** (`/orders/<id>/done`) — la page interroge le statut ; le **webhook**
+   `payment_intent.completed` marque la commande payée (mise à jour idempotente).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tester le webhook sans paiement réel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run wh completed <orderId>   # → 200, commande "Payé"
+npm run wh expired   <orderId>   # → 200, commande "Expiré"
+npm run wh tampered  <orderId>   # signature falsifiée → 400
+npm run wh replay    <orderId>   # timestamp trop vieux → 400 (anti-replay)
+```
+
+`<orderId>` (préfixe `ord_`) provient d'une commande créée au checkout. Rejouez `completed` deux
+fois pour vérifier l'**idempotence**.
+
+## Architecture
+
+- `lib/catalog.ts` — catalogue + calcul du total côté serveur.
+- `lib/izipay.ts` — client REST IzichangePay + vérification de webhook (HMAC + anti-replay).
+- `lib/db.ts` — store local des commandes (`data/records.json`).
+- `app/api/checkout`, `app/webhook`, `app/api/status/[id]` — backend.
+- `app/`, `app/cart`, `app/orders/[id]/done`, `app/_cart` — vitrine + panier.
+
+## Évolutions prévues
+
+- **Checkout embedded `embed.js`** (sans redirection) : prévu Q1 2027 — point de bascule
+  `CHECKOUT_MODE=redirect|embedded` (`TODO(embed.js Q1 2027)`).
+- **SDK officiel `@izipay/node-sdk`** : remplacera l'implémentation interne de `lib/izipay.ts`
+  (`TODO(node-sdk)`).

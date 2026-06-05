@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
+/* Bascule de thème pilotée par l'attribut data-theme sur <html> (toggle + système). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Thème clair (par défaut). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #fafafa;
+  --foreground: #18181b; /* zinc-900 */
+  --card: #ffffff;
+  --border: #e4e4e7; /* zinc-200 */
+  --muted: #71717a; /* zinc-500 */
+  --tile: #f4f4f5; /* zinc-100 — fond neutre des vignettes produit */
+  --accent: #0f766e; /* teal-700 (contraste AA sur blanc) */
+  --accent-fg: #ffffff;
+}
+
+/* Thème sombre. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0a0e0d;
+  --foreground: #e7ecea;
+  --card: #121817;
+  --border: #232b29;
+  --muted: #8b9692;
+  --tile: #1a211f;
+  --accent: #2dd4bf; /* teal-400 (lisible sur fond sombre) */
+  --accent-fg: #04201c;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-tile: var(--tile);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
