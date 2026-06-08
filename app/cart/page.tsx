@@ -7,11 +7,58 @@ import { resolveCart } from "@/lib/catalog";
 import { formatAmount } from "@/lib/money";
 import { alertError, buttonGhost, buttonPrimary, cn, Spinner } from "../_components/ui";
 
+// ── Intégration embed.js : modale de paiement, sans redirection ─────────────
+type IziPayHandle = { close: () => void };
+type IziPayOpen = (opts: {
+  intentId: string;
+  locale?: string;
+  onSuccess?: (d: unknown) => void;
+  onExpired?: () => void;
+  onFailed?: () => void;
+  onError?: (e: unknown) => void;
+  onClose?: () => void;
+}) => IziPayHandle;
+
+declare global {
+  interface Window {
+    IziPay?: { open: IziPayOpen; __loaded?: boolean };
+  }
+}
+
+/** Charge embed.js depuis l'origine du widget (dérivée du paymentLink). Idempotent. */
+function loadEmbedScript(widgetOrigin: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.IziPay?.open) return resolve();
+    const existing = document.querySelector<HTMLScriptElement>("script[data-izipay-embed]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("embed.js")), { once: true });
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = `${widgetOrigin}/embed.js`;
+    s.async = true;
+    s.dataset.izipayEmbed = "1";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Échec du chargement de embed.js"));
+    document.head.appendChild(s);
+  });
+}
+
+// Méthodes d'intégration testables depuis le panier.
+type PayMethod = "embedded" | "hosted" | "sdk";
+const PAY_METHODS: { value: PayMethod; label: string; desc: string }[] = [
+  { value: "embedded", label: "Modale (embed.js)", desc: "Overlay sur la boutique, sans redirection." },
+  { value: "hosted", label: "Page hébergée", desc: "Redirection vers la page de paiement izipay." },
+  { value: "sdk", label: "SDK Node (modale)", desc: "Intent créé via @izipay/node-sdk, puis modale." },
+];
+
 export default function CartPage() {
   const { lines, setQty, remove, clear } = useCart();
   const { lines: resolved, total } = resolveCart(lines);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<PayMethod>("embedded");
 
   async function checkout() {
     setError(null);
@@ -20,7 +67,7 @@ export default function CartPage() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: lines }),
+        body: JSON.stringify({ items: lines, method }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -28,8 +75,43 @@ export default function CartPage() {
         setSubmitting(false);
         return;
       }
-      clear();
-      window.location.href = data.redirectUrl;
+      // Mode embedded → modale embed.js (data.intentId présent).
+      // Sinon → redirection vers le checkout hébergé (comportement par défaut).
+      if (data.intentId) {
+        const widgetOrigin = new URL(data.redirectUrl as string).origin;
+        await loadEmbedScript(widgetOrigin);
+        const open = window.IziPay?.open;
+        if (!open) throw new Error("embed.js indisponible (window.IziPay absent)");
+        clear();
+        const done = () => {
+          window.location.href = `/orders/${data.orderId}/done`;
+        };
+        open({
+          intentId: data.intentId as string,
+          locale: "fr",
+          // Paiement confirmé par le widget : on NE ferme PAS la modale. Le widget
+          // affiche son écran de succès (bouton « Fermer »), et le webhook marque la
+          // commande payée côté serveur (source de vérité). On redirige seulement
+          // quand le client ferme lui-même la modale.
+          onSuccess: () => {},
+          onClose: done,
+          onExpired: () => {
+            setError("Paiement expiré.");
+            setSubmitting(false);
+          },
+          onFailed: () => {
+            setError("Paiement échoué.");
+            setSubmitting(false);
+          },
+          onError: () => {
+            setError("Erreur du widget de paiement.");
+            setSubmitting(false);
+          },
+        });
+      } else {
+        clear();
+        window.location.href = data.redirectUrl;
+      }
     } catch (err) {
       setError((err as Error).message);
       setSubmitting(false);
@@ -102,6 +184,30 @@ export default function CartPage() {
         <span className="text-2xl font-bold tabular-nums">{formatAmount(total)}</span>
       </div>
 
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+        <p className="mb-3 text-sm font-medium text-[var(--muted)]">Méthode de paiement</p>
+        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Méthode de paiement">
+          {PAY_METHODS.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              role="radio"
+              aria-checked={method === m.value}
+              onClick={() => setMethod(m.value)}
+              className={cn(
+                "rounded-xl border p-3 text-left transition",
+                method === m.value
+                  ? "border-[#006565] ring-2 ring-[#006565]/30 bg-[#006565]/5"
+                  : "border-[var(--border)] hover:bg-black/5 dark:hover:bg-white/10",
+              )}
+            >
+              <span className="block text-sm font-semibold">{m.label}</span>
+              <span className="mt-0.5 block text-xs text-[var(--muted)]">{m.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {error ? (
         <p role="alert" className={alertError}>
           {error}
@@ -117,7 +223,7 @@ export default function CartPage() {
         >
           {submitting ? (
             <>
-              <Spinner /> Redirection vers le paiement…
+              <Spinner /> Préparation du paiement…
             </>
           ) : (
             `Payer ${formatAmount(total)} en crypto →`

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { IziPayClient, IziPayApiError, IziPayError } from "@/lib/izipay";
+import { IziPayClient as IziPaySdkClient } from "@izipay/node-sdk";
 import { db } from "@/lib/db";
 import { resolveCart, CURRENCY, DEFAULT_ACCEPTED_COINS, type CartLine } from "@/lib/catalog";
 
@@ -11,7 +12,7 @@ export const runtime = "nodejs";
  * hébergé (paymentLink) vers laquelle rediriger le client.
  */
 export async function POST(req: Request) {
-  let payload: { items?: CartLine[] };
+  let payload: { items?: CartLine[]; method?: string };
   try {
     payload = await req.json();
   } catch {
@@ -68,28 +69,67 @@ export async function POST(req: Request) {
 
   const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
 
+  // Méthode d'intégration choisie au panier. Défaut : CHECKOUT_MODE (.env), sinon hébergé.
+  //   embedded → modale embed.js (client maison)   hosted → redirection (client maison)
+  //   sdk      → modale embed.js MAIS l'intent est créé via @izipay/node-sdk officiel.
+  const method: "embedded" | "hosted" | "sdk" =
+    payload.method === "hosted" || payload.method === "sdk" || payload.method === "embedded"
+      ? payload.method
+      : process.env.CHECKOUT_MODE === "embedded"
+        ? "embedded"
+        : "hosted";
+
+  const createParams = {
+    requestedCurrencyType: "fiat" as const,
+    currencyRequested: CURRENCY,
+    amountRequested: amount,
+    acceptedCoins,
+    merchantReference: order.id,
+    returnUrl: `${siteUrl}/orders/${order.id}/done`,
+    metadata: { orderId: order.id },
+    idempotencyKey: `checkout-${order.id}`,
+  };
+
   try {
-    const intent = await client.paymentIntents.create({
-      requestedCurrencyType: "fiat",
-      currencyRequested: CURRENCY,
-      amountRequested: amount,
-      acceptedCoins,
-      merchantReference: order.id,
-      returnUrl: `${siteUrl}/orders/${order.id}/done`,
-      metadata: { orderId: order.id },
-      idempotencyKey: `checkout-${order.id}`,
-    });
+    let intentId: string;
+    let paymentLink: string;
+    let status: string;
+    let raw: unknown;
 
-    db.update(order.id, {
-      izipayId: intent.id,
-      paymentLink: intent.paymentLink,
-      status: intent.status || "pending_payment",
-      raw: intent,
-    });
+    if (method === "sdk") {
+      // Voie SDK officiel : démontre que `@izipay/node-sdk` crée le même intent.
+      const sdk = new IziPaySdkClient({
+        apiKey: process.env.IZIPAY_API_KEY ?? "",
+        baseUrl: process.env.IZIPAY_API_BASE_URL,
+      });
+      const intent = await sdk.paymentIntents.create(createParams);
+      intentId = intent.id;
+      // ⚠️ Bug @izipay/node-sdk : le type déclare `paymentUrl` mais l'API renvoie
+      // `paymentLink` (le SDK ne mappe pas la réponse). Repli sur paymentLink.
+      paymentLink =
+        intent.paymentUrl ??
+        (intent as unknown as { paymentLink?: string }).paymentLink ??
+        "";
+      status = intent.status;
+      raw = intent;
+    } else {
+      const intent = await client.paymentIntents.create(createParams);
+      intentId = intent.id;
+      paymentLink = intent.paymentLink; // le client maison expose `paymentLink`
+      status = intent.status || "pending_payment";
+      raw = intent;
+    }
 
-    // TODO(embed.js Q1 2027): en mode CHECKOUT_MODE=embedded, renvoyer { intentId } pour
-    // monter le widget inline au lieu de rediriger vers paymentLink.
-    return NextResponse.json({ orderId: order.id, redirectUrl: intent.paymentLink });
+    db.update(order.id, { izipayId: intentId, paymentLink, status, raw });
+
+    // embedded & sdk → modale (on renvoie intentId) ; hosted → redirection seule.
+    const wantsModal = method === "embedded" || method === "sdk";
+    return NextResponse.json({
+      orderId: order.id,
+      method,
+      redirectUrl: paymentLink,
+      ...(wantsModal ? { intentId } : {}),
+    });
   } catch (e) {
     const err = e as IziPayApiError;
     db.update(order.id, {
