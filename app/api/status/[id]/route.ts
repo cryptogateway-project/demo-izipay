@@ -33,7 +33,7 @@ export async function GET(
   if (NON_TERMINAL.has(record.status) && record.izipayId) {
     try {
       const intent = await new IziPayClient().paymentIntents.retrieve(record.izipayId);
-      const mapped = mapIntentStatus(intent, record);
+      const mapped = mapIntentStatus(intent as unknown as Record<string, unknown>, record);
       if (mapped && mapped !== record.status) {
         db.update(record.id, { status: mapped, raw: intent });
         record.status = mapped;

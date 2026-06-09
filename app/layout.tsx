@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "./_components/SiteHeader";
 import { CartProvider } from "./_cart/CartProvider";
+import { CartBar } from "./_cart/CartBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +39,8 @@ export default function RootLayout({
         />
         <CartProvider>
           <SiteHeader />
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 pb-24">{children}</main>
+          <CartBar />
           <footer className="border-t border-[var(--border)] py-6 text-center text-xs text-[var(--muted)]">
             IziShop — paiement en crypto propulsé par IzichangePay.
           </footer>

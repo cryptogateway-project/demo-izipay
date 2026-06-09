@@ -8,10 +8,10 @@
    Lumière vive d'Afrique de l'Ouest : surface chaude et claire, accent teal franc. */
 :root {
   color-scheme: light;
-  --background: oklch(0.985 0.006 185);
+  --background: oklch(0.962 0.018 185);
   --foreground: oklch(0.24 0.022 205);
-  --card: oklch(0.998 0.003 185);
-  --border: oklch(0.915 0.009 195);
+  --card: oklch(0.994 0.004 185);
+  --border: oklch(0.900 0.012 190);
   --muted: oklch(0.55 0.018 205);
   --tile: oklch(0.955 0.014 188);
   --accent: oklch(0.52 0.088 178); /* teal izipay (#0f766e) */

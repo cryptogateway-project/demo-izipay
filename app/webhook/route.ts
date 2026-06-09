@@ -59,8 +59,9 @@ function handleEvent(event: WebhookEvent): void {
     (typeof d.paymentIntentId === "string" && d.paymentIntentId) ||
     undefined;
   const stored = { type: event.type, timestamp: event.timestamp, data: d };
-
-  switch (event.type) {
+  // Cast to string: the SDK WebhookEventType union is incomplete (e.g. payment_intent.confirming).
+  const eventType = event.type as string;
+  switch (eventType) {
     case "payment_intent.completed": {
       const order = db.find(ref, intentId);
       if (!order) break; // aucune commande locale correspondante → rien à livrer

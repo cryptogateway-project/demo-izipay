@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "../_cart/CartProvider";
 import { ThemeToggle } from "./ThemeToggle";
@@ -11,15 +12,15 @@ export function SiteHeader() {
     <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
         <Link href="/" className="group flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent)] font-mono text-sm font-bold text-[var(--accent-fg)] shadow-[var(--shadow-sm)] transition-transform duration-200 ease-out group-hover:-rotate-6">
-            iz
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-bold tracking-tight">IziShop</span>
-            <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
-              by IzichangePay
-            </span>
-          </span>
+          <Image
+            src="/izipay-icon.svg"
+            alt="IzichangePay"
+            width={32}
+            height={32}
+            className="transition-transform duration-200 ease-out group-hover:-rotate-6"
+            priority
+          />
+          <span className="font-bold tracking-tight">IziShop</span>
         </Link>
 
         <div className="ml-auto flex items-center gap-2">

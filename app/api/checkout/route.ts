@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { IziPayClient, IziPayApiError, IziPayError } from "@/lib/izipay";
-import { IziPayClient as IziPaySdkClient } from "@izipay/node-sdk";
+import { IziPayClient as IziPaySdkClient } from "izichangepay-sdk";
 import { db } from "@/lib/db";
 import { resolveCart, CURRENCY, DEFAULT_ACCEPTED_COINS, type CartLine } from "@/lib/catalog";
 
@@ -104,11 +104,11 @@ export async function POST(req: Request) {
       });
       const intent = await sdk.paymentIntents.create(createParams);
       intentId = intent.id;
-      // ⚠️ Bug @izipay/node-sdk : le type déclare `paymentUrl` mais l'API renvoie
-      // `paymentLink` (le SDK ne mappe pas la réponse). Repli sur paymentLink.
+      // L'API renvoie `paymentLink`; le SDK le type `paymentUrl` sans normalisation.
+      // On accepte les deux pour être robuste à une future mise à jour de l'API.
       paymentLink =
-        intent.paymentUrl ??
         (intent as unknown as { paymentLink?: string }).paymentLink ??
+        intent.paymentUrl ??
         "";
       status = intent.status;
       raw = intent;
