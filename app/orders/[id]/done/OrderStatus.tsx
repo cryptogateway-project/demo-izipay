@@ -162,7 +162,6 @@ export function OrderStatus({ id }: { id: string }) {
           <Row label="Montant" value={formatAmount(data.amount, data.currency)} />
         ) : null}
         {data.izipayId ? <Row label="Intent" value={data.izipayId} mono /> : null}
-        <Row label="Webhooks reçus" value={String(data.eventsCount)} />
       </dl>
 
       {!paid && !expired && !irregular && !mismatch && data.paymentLink ? (
