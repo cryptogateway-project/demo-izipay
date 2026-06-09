@@ -1,87 +1,66 @@
 import { NextResponse } from "next/server";
-import { IziPayClient } from "@/lib/izipay";
-import { db } from "@/lib/db";
+import { IziPayClient, IziPayError } from "@/lib/izipay";
+import type { PaymentIntent } from "@/lib/izipay";
 
 export const runtime = "nodejs";
 
 /**
- * Statut d'une commande (lu dans le store, mis à jour par le webhook).
- * Si l'intent est encore en attente, on RÉCONCILIE en interrogeant l'API
- * (utile pour observer le statut sans attendre la livraison du webhook).
+ * Statut d'un paiement — interroge l'API IzichangePay directement par merchantReference.
+ * Pas de base de données : le lien local ↔ IzichangePay se fait via merchantReference = orderId.
  */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const record = db.get(id);
-  if (!record) {
+
+  let client: IziPayClient;
+  try {
+    client = new IziPayClient();
+  } catch (e) {
+    return NextResponse.json({ error: (e as IziPayError).message }, { status: 500 });
+  }
+
+  let intent: PaymentIntent | undefined;
+  try {
+    // Recherche par merchantReference (= notre ref local ord_xxx)
+    const page = await client.paymentIntents.list({ merchantReference: id });
+    const data = (page as unknown as { data?: PaymentIntent[] }).data;
+    intent = Array.isArray(data) ? data[0] : undefined;
+  } catch {
+    return NextResponse.json({ error: "Erreur API IzichangePay." }, { status: 502 });
+  }
+
+  if (!intent) {
     return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
   }
 
-  let reconciledFrom: "webhook" | "api" = "webhook";
-
-  // On réconcilie tant que la commande n'est pas dans un état terminal.
-  const NON_TERMINAL = new Set([
-    "pending_payment",
-    "confirming",
-    "waiting_address_selection",
-    "pending",
-    "creating",
-  ]);
-
-  if (NON_TERMINAL.has(record.status) && record.izipayId) {
-    try {
-      const intent = await new IziPayClient().paymentIntents.retrieve(record.izipayId);
-      const mapped = mapIntentStatus(intent as unknown as Record<string, unknown>, record);
-      if (mapped && mapped !== record.status) {
-        db.update(record.id, { status: mapped, raw: intent });
-        record.status = mapped;
-        reconciledFrom = "api";
-      }
-    } catch {
-      // Pas de clé / erreur réseau : on reste sur l'état du store.
-    }
-  }
+  const paymentLink =
+    intent.paymentLink ?? (intent as unknown as { paymentUrl?: string }).paymentUrl ?? "";
 
   return NextResponse.json({
-    id: record.id,
-    status: record.status,
-    amount: record.amount,
-    currency: record.currency,
-    paymentLink: record.paymentLink,
-    izipayId: record.izipayId,
-    paidAt: record.paidAt,
-    eventsCount: record.events.length,
-    reconciledFrom,
+    id,
+    intentId: intent.id,
+    status: mapStatus(intent),
+    amount: intent.amountRequested,
+    currency: intent.currencyRequested,
+    paymentLink,
+    paidAt: intent.status === "completed" ? intent.expiresAt : undefined,
+    eventsCount: 0,
+    reconciledFrom: "api" as const,
   });
 }
 
-/**
- * Mappe le statut d'un intent (source de vérité API) vers l'état de commande,
- * en vérifiant le montant et en signalant les paiements irréguliers.
- */
-function mapIntentStatus(
-  intent: Record<string, unknown>,
-  record: { amount?: string; currency?: string },
-): string | null {
-  const s = typeof intent.status === "string" ? intent.status : "";
-  const irr = typeof intent.irregularStatus === "string" ? intent.irregularStatus : "none";
+function mapStatus(intent: PaymentIntent): string {
+  const s = intent.status as string;
+  const irr = (intent as unknown as Record<string, unknown>).irregularStatus;
 
   if (s === "completed") {
-    const got = typeof intent.amountRequested === "string" ? intent.amountRequested : undefined;
-    const gotCur =
-      typeof intent.currencyRequested === "string" ? intent.currencyRequested : undefined;
-    if (record.amount != null && got != null && Number(record.amount) !== Number(got)) {
-      return "amount_mismatch";
-    }
-    if (record.currency != null && gotCur != null && record.currency !== gotCur) {
-      return "amount_mismatch";
-    }
-    if (irr !== "none") return "irregular";
+    if (typeof irr === "string" && irr !== "none") return "irregular";
     return "paid";
   }
   if (s === "expired") return "expired";
-  if (s === "irregular" || irr !== "none") return "irregular";
-  return s || null;
+  if (s === "irregular" || (typeof irr === "string" && irr !== "none")) return "irregular";
+  // confirming / pending / waiting_address_selection → on les expose tels quels
+  return s || "pending_payment";
 }
