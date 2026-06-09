@@ -78,6 +78,9 @@ export default function CartPage() {
       // Mode embedded → modale embed.js (data.intentId présent).
       // Sinon → redirection vers le checkout hébergé (comportement par défaut).
       if (data.intentId) {
+        // Persisté en sessionStorage pour que la page /done puisse retrieve() directement
+        // sans dépendre du filtre merchantReference (non fiable sur sandbox).
+        sessionStorage.setItem(`izipay_pi_${data.orderId}`, data.intentId as string);
         const widgetOrigin = new URL(data.redirectUrl as string).origin;
         await loadEmbedScript(widgetOrigin);
         const open = window.IziPay?.open;
@@ -109,6 +112,9 @@ export default function CartPage() {
           },
         });
       } else {
+        if (data.intentId) {
+          sessionStorage.setItem(`izipay_pi_${data.orderId}`, data.intentId as string);
+        }
         clear();
         window.location.href = data.redirectUrl;
       }

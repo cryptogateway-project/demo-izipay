@@ -34,9 +34,13 @@ export function OrderStatus({ id }: { id: string }) {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
 
+    // Préférer l'intentId stocké au checkout (retrieve direct) ; sinon fallback merchantRef.
+    const intentId = sessionStorage.getItem(`izipay_pi_${id}`);
+    const statusKey = intentId ?? id;
+
     async function poll() {
       try {
-        const res = await fetch(`/api/status/${id}`, { cache: "no-store" });
+        const res = await fetch(`/api/status/${statusKey}`, { cache: "no-store" });
         const json = await res.json();
         if (!active) return;
         if (!res.ok) {

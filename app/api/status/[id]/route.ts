@@ -23,10 +23,15 @@ export async function GET(
 
   let intent: PaymentIntent | undefined;
   try {
-    // Recherche par merchantReference (= notre ref local ord_xxx)
-    const page = await client.paymentIntents.list({ merchantReference: id });
-    const data = (page as unknown as { data?: PaymentIntent[] }).data;
-    intent = Array.isArray(data) ? data[0] : undefined;
+    if (id.startsWith("ord_")) {
+      // merchantReference → list + filtre
+      const page = await client.paymentIntents.list({ merchantReference: id });
+      const data = (page as unknown as { data?: PaymentIntent[] }).data;
+      intent = Array.isArray(data) ? data[0] : undefined;
+    } else {
+      // intentId IzichangePay → retrieve direct (plus fiable)
+      intent = await client.paymentIntents.retrieve(id);
+    }
   } catch {
     return NextResponse.json({ error: "Erreur API IzichangePay." }, { status: 502 });
   }
