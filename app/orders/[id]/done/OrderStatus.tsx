@@ -105,10 +105,7 @@ export function OrderStatus({ id }: { id: string }) {
               ✓
             </div>
             <h1 className="mt-3 text-xl font-bold">Paiement reçu</h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {data.amount ? formatAmount(data.amount, data.currency) : ""} confirmé via{" "}
-              {data.reconciledFrom === "webhook" ? "webhook" : "réconciliation API"}.
-            </p>
+            <p className="mt-1 text-sm text-[var(--muted)]">Votre commande est confirmée.</p>
             {irregularNote ? (
               <p className="mt-2 text-xs text-[var(--muted)]">
                 Montant hors plage standard : conformité statuée par la plateforme.

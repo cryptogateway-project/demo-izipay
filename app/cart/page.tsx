@@ -123,7 +123,7 @@ export default function CartPage() {
     host.innerHTML = ""; // re-render propre
 
     Button({
-      label: `Payer ${formatAmount(total)}`,
+      label: "Payer avec",
       loadingLabel: "Préparation…",
       shape: "rounded",
       color: "teal",
@@ -153,7 +153,7 @@ export default function CartPage() {
       host.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isModal, scriptReady, method, total]);
+  }, [isModal, scriptReady, method]);
 
   // Mode hébergé : bouton classique → redirection vers le paymentLink.
   async function checkoutHosted() {
@@ -292,7 +292,7 @@ export default function CartPage() {
                   <Spinner /> Préparation du paiement…
                 </>
               ) : (
-                `Payer ${formatAmount(total)} en crypto →`
+                `Payer en crypto →`
               )}
             </button>
           ) : scriptReady ? (
