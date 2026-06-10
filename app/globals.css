@@ -57,6 +57,7 @@
   --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-typold); /* Typold (marque) pour les titres */
 }
 
 body {
@@ -67,9 +68,11 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Titres : tracking serré pour une hiérarchie nette. */
+/* Titres : police de marque Typold + tracking serré pour une hiérarchie nette.
+   Le corps de texte (body, p…) reste en Geist. */
 h1,
 h2,
 h3 {
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
   letter-spacing: -0.022em;
 }

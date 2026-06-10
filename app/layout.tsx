@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SiteHeader } from "./_components/SiteHeader";
 import { CartProvider } from "./_cart/CartProvider";
@@ -13,6 +14,17 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Typold — police de marque IzichangePay (celle du bouton de paiement). Utilisée
+// pour les titres ; Geist reste la police de corps. Voir globals.css (--font-heading).
+const typold = localFont({
+  src: [
+    { path: "./fonts/Typold-Regular.otf", weight: "400", style: "normal" },
+    { path: "./fonts/Typold-Bold.otf", weight: "700", style: "normal" },
+  ],
+  variable: "--font-typold",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +43,7 @@ export default function RootLayout({
     <html
       lang="fr"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${typold.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <script
