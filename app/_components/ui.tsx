@@ -50,6 +50,7 @@ export function StatusPill({ status }: { status: string }) {
     sent: { label: "Envoyée", tone: "info" },
     creating: { label: "Création…", tone: "neutral" },
     expired: { label: "Expiré", tone: "neutral" },
+    refunded: { label: "Remboursé", tone: "neutral" },
     inactive: { label: "Inactif", tone: "neutral" },
     irregular: { label: "À vérifier", tone: "warn" },
     amount_mismatch: { label: "Montant incohérent", tone: "danger" },

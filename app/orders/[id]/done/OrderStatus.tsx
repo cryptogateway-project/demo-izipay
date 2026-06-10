@@ -8,6 +8,7 @@ import { formatAmount } from "@/lib/money";
 interface Status {
   id: string;
   status: string;
+  irregularStatus?: string;
   amount?: string;
   currency?: string;
   paymentLink?: string;
@@ -22,8 +23,7 @@ const TERMINAL = new Set([
   "completed",
   "expired",
   "error",
-  "irregular",
-  "amount_mismatch",
+  "refunded",
 ]);
 
 export function OrderStatus({ id }: { id: string }) {
@@ -83,8 +83,10 @@ export function OrderStatus({ id }: { id: string }) {
   const paid = data.status === "paid" || data.status === "completed";
   const expired = data.status === "expired";
   const confirming = data.status === "confirming";
-  const irregular = data.status === "irregular";
-  const mismatch = data.status === "amount_mismatch";
+  const refunded = data.status === "refunded";
+  // Paiement reçu mais montant hors plage standard : la plateforme statue
+  // l'encaissement. On le signale en note, sans bloquer le succès.
+  const irregularNote = !!data.irregularStatus && data.irregularStatus !== "none";
 
   return (
     <Card className="space-y-5">
@@ -107,6 +109,11 @@ export function OrderStatus({ id }: { id: string }) {
               {data.amount ? formatAmount(data.amount, data.currency) : ""} confirmé via{" "}
               {data.reconciledFrom === "webhook" ? "webhook" : "réconciliation API"}.
             </p>
+            {irregularNote ? (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Montant hors plage standard : conformité statuée par la plateforme.
+              </p>
+            ) : null}
           </>
         ) : expired ? (
           <>
@@ -118,26 +125,14 @@ export function OrderStatus({ id }: { id: string }) {
               Le délai est écoulé sans paiement suffisant.
             </p>
           </>
-        ) : mismatch ? (
+        ) : refunded ? (
           <>
-            <div className="mx-auto grid size-14 place-items-center rounded-full bg-rose-100 text-2xl dark:bg-rose-500/15">
-              ⚠️
+            <div className="mx-auto grid size-14 place-items-center rounded-full bg-slate-200 text-2xl dark:bg-slate-500/20">
+              ↩
             </div>
-            <h1 className="mt-3 text-xl font-bold">Montant inattendu</h1>
+            <h1 className="mt-3 text-xl font-bold">Paiement remboursé</h1>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Le montant reçu ne correspond pas à cette commande. Le paiement n&apos;a pas été validé
-              automatiquement — une vérification manuelle est requise.
-            </p>
-          </>
-        ) : irregular ? (
-          <>
-            <div className="mx-auto grid size-14 place-items-center rounded-full bg-amber-100 text-2xl dark:bg-amber-500/15">
-              ⚠️
-            </div>
-            <h1 className="mt-3 text-xl font-bold">Paiement à vérifier</h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Paiement reçu hors de la plage acceptée. En attente d&apos;une décision (encaissement
-              ou remboursement) côté plateforme.
+              Le montant reçu a été remboursé au client par la plateforme.
             </p>
           </>
         ) : (
@@ -164,7 +159,7 @@ export function OrderStatus({ id }: { id: string }) {
         {data.izipayId ? <Row label="Intent" value={data.izipayId} mono /> : null}
       </dl>
 
-      {!paid && !expired && !irregular && !mismatch && data.paymentLink ? (
+      {!paid && !expired && !refunded && data.paymentLink ? (
         <a href={data.paymentLink} className={`${buttonPrimary} w-full`}>
           Reprendre le paiement →
         </a>

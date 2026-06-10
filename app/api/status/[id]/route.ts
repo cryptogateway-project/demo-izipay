@@ -43,10 +43,14 @@ export async function GET(
   const paymentLink =
     intent.paymentLink ?? (intent as unknown as { paymentUrl?: string }).paymentUrl ?? "";
 
+  const irr = (intent as unknown as Record<string, unknown>).irregularStatus;
+  const irregularStatus = typeof irr === "string" ? irr : "none";
+
   return NextResponse.json({
     id,
     intentId: intent.id,
     status: mapStatus(intent),
+    irregularStatus,
     amount: intent.amountRequested,
     currency: intent.currencyRequested,
     paymentLink,
@@ -56,16 +60,17 @@ export async function GET(
   });
 }
 
+// La conformité du montant (reçu dans la plage acceptée) est décidée par la
+// PLATEFORME via `irregularStatus` (none · pending_decision · encashed · refunded),
+// PAS par la boutique : on lit ce flag, on ne le calcule pas. Un intent `completed`
+// = fonds reçus on-chain → succès. Seul un remboursement annule la vente ; un
+// montant « irrégulier » non remboursé reste un paiement réussi (signalé en note).
 function mapStatus(intent: PaymentIntent): string {
   const s = intent.status as string;
   const irr = (intent as unknown as Record<string, unknown>).irregularStatus;
-
-  if (s === "completed") {
-    if (typeof irr === "string" && irr !== "none") return "irregular";
-    return "paid";
-  }
+  if (irr === "refunded") return "refunded";
+  if (s === "completed") return "paid";
   if (s === "expired") return "expired";
-  if (s === "irregular" || (typeof irr === "string" && irr !== "none")) return "irregular";
-  // confirming / pending / waiting_address_selection → on les expose tels quels
+  // confirming / pending / waiting_address_selection → exposés tels quels
   return s || "pending_payment";
 }

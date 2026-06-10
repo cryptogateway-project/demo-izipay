@@ -61,25 +61,10 @@ const WIDGET_ORIGIN =
 // tous deux le bouton officiel (modale) — leur seule différence est le chemin
 // serveur qui crée l'intent. `hosted` reste une redirection vers la page hébergée.
 type PayMethod = "embedded" | "hosted" | "sdk";
-const PAY_METHODS: { value: PayMethod; label: string; desc: string; hint: string }[] = [
-  {
-    value: "embedded",
-    label: "Bouton modale",
-    desc: "Bouton officiel IziPay.Button → modale, sans redirection.",
-    hint: "Modale embarquée · IziPay.Button + createIntent · aucune redirection",
-  },
-  {
-    value: "sdk",
-    label: "Bouton modale (SDK Node)",
-    desc: "Intent créé via le SDK Node côté serveur, puis modale.",
-    hint: "Modale · intent créé par le SDK Node côté serveur · aucune redirection",
-  },
-  {
-    value: "hosted",
-    label: "Page hébergée",
-    desc: "Bouton classique → redirection vers la page de paiement.",
-    hint: "Redirection vers la page de paiement hébergée IzichangePay",
-  },
+const PAY_METHODS: { value: PayMethod; label: string; desc: string }[] = [
+  { value: "embedded", label: "Bouton modale", desc: "Bouton officiel IziPay.Button → modale, sans redirection." },
+  { value: "sdk", label: "Bouton modale (SDK Node)", desc: "Intent créé via le SDK Node côté serveur, puis modale." },
+  { value: "hosted", label: "Page hébergée", desc: "Bouton classique → redirection vers la page de paiement." },
 ];
 
 type CheckoutResult = { orderId: string; intentId: string; redirectUrl: string; method: string };
@@ -319,14 +304,8 @@ export default function CartPage() {
               <Spinner /> Chargement du bouton de paiement…
             </button>
           )}
-          {/* Hint : mode de paiement actif. Distingue les 3 types même quand
-              `embedded` et `sdk` rendent le même bouton officiel. */}
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className="size-1.5 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
-            <span>Mode actif : {PAY_METHODS.find((m) => m.value === method)?.hint}</span>
-          </p>
           {isModal && scriptError ? (
-            <p className="mt-1.5 text-xs text-[var(--muted)]">
+            <p className="mt-2 text-xs text-[var(--muted)]">
               Modale indisponible : paiement via la page hébergée.
             </p>
           ) : null}
